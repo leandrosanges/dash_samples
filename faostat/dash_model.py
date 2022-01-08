@@ -82,7 +82,7 @@ def criaPieChart(df, dfType, country, decade, indicator):
     df = df[df['Element'] == indicator]
     df = df[["Item", "Value"]]
     df = df.groupby(["Item"]).sum().reset_index()
-    df = df.nlargest(5, 'Value')
+    df = df.nlargest(6, 'Value')
     if not df.empty:
         fig = px.pie(df, values='Value', names='Item',
             color_discrete_sequence=px.colors.sequential.Blues)
