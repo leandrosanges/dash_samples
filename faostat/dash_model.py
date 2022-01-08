@@ -69,11 +69,12 @@ def criaMapa(decade):
     return fig
 
 def criaPieChart(df, dfType, country, decade, indicator):
-    title = "world's top 6 " + dfType + ' X ' + indicator
+    place = 'world'
     if country:
         df = df[(df["Area"] == country)]
-        title = country + "'s top 6 " + dfType
+        place = country
 
+    title = place + "'s top 6 " + dfType + ' X ' + indicator
     if decade != 'All Time':
         df= df[(df["Interval"] == decade)]
     title = decade + ' ' + title
@@ -81,7 +82,7 @@ def criaPieChart(df, dfType, country, decade, indicator):
     df = df[df['Element'] == indicator]
     df = df[["Item", "Value"]]
     df = df.groupby(["Item"]).sum().reset_index()
-    df = df.nlargest(6, 'Value')
+    df = df.nlargest(5, 'Value')
     if not df.empty:
         fig = px.pie(df, values='Value', names='Item',
             color_discrete_sequence=px.colors.sequential.Blues)
@@ -111,22 +112,23 @@ def criaPieChart(df, dfType, country, decade, indicator):
 
 def criaTimeSeries(df, dfType, country, decade, indicator):
     timerange = 'Interval'
-    title = "world's top " + dfType + ' X ' + indicator
+    place = 'world'
     if country:
         df = df[(df["Area"] == country)]
-        title = country + "'s top " + dfType
+        place = country
 
     if decade != 'All Time':
         df= df[(df["Interval"] == decade)]
         timerange = 'Year'
-    title = decade + ' ' + title
+    title =  decade + ' ' + place + "'s top " + dfType + ' X ' + indicator
+
     df = df[df["Element"] == indicator]
     if not df.empty:
         df_groupby = df.groupby(["Item", timerange])["Value"].sum().reset_index()
         decadas = df_groupby[timerange].unique()
         df1 = pd.DataFrame()
         for i in decadas:
-            df_filtrada_top5 = df_groupby[df_groupby[timerange] == i].nlargest(5, 'Value')
+            df_filtrada_top5 = df_groupby[df_groupby[timerange] == i].nlargest(6, 'Value')
             frames = [df1, df_filtrada_top5]
             df1 = pd.concat(frames)
         top_itens = df_groupby[df_groupby["Item"].isin(df1["Item"].unique())]
