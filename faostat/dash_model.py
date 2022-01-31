@@ -1,6 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 22 15:34:24 2022
+
+@author: Felipe Yungstedt, Alcebíades Barbosa
+"""
+
 import json
 from textwrap import dedent as d
-
+  
 import dash
 from dash import dcc
 from dash import html
@@ -18,7 +25,6 @@ crops = pd.read_csv(zip_file.open('production_final.csv'), encoding='iso-8859-1'
 fert = pd.read_csv(zip_file.open('fertilizer_final.csv'), encoding='iso-8859-1', sep=';')
 pest = pd.read_csv(zip_file.open('pesticides_final.csv'), encoding='iso-8859-1', sep=';')
 
-
 # crops = pd.read_csv("dados/production_final.csv", encoding='iso-8859-1', sep=';')
 crops = crops[crops['Value'].notna()]
 # fert = pd.read_csv("dados/fertilizer_final.csv", encoding='iso-8859-1', sep=';')
@@ -33,7 +39,7 @@ available_indicators = df['Element'].unique()
 
 decades_options = df['Interval'].unique()
 decades_options.sort()
-decades = np.append(['All Time'], decades_options)
+decades = np.append(['Todo o período'], decades_options)
 
 production_itens = crops['Item'].unique()
 production_indicators = crops['Element'].unique()
@@ -42,7 +48,7 @@ fertilizer_indicators = fert['Element'].unique()
 pesticide_itens = pest['Item'].unique()
 pesticide_indicators = pest['Element'].unique()
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+#external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__)
 
@@ -53,10 +59,10 @@ styles = {
     }
 }
 
-def criaMapa(decade):
+def criaMapa(decade, indicator):
     map_df = df
-    map_df= map_df[(map_df["Element"] == "Production")]
-    if decade != 'All Time':
+    map_df= map_df[(map_df["Element"] == indicator)]
+    if decade != 'Todo o período':
         map_df= map_df[(map_df["Interval"] == decade)]
 
     map_df = map_df[["Alpha-3 code", "continent", "Area", "Value"]]
@@ -65,30 +71,37 @@ def criaMapa(decade):
     fig = px.scatter_geo(map_df, locations="Alpha-3 code", color="continent",
                         hover_name="Area", size="Value",
                         projection="natural earth",
-                        title=decade + " world's production")
+                        title="Produtos agrícolas e pecuários: " + traducao(indicator) + " no mundo em " + decade)
     return fig
 
-def criaPieChart(df, dfType, country, decade, indicator):
-    place = 'world'
+def criaBarChart(df, dfType, country, decade, indicator):
+    place = 'mundo'
     if country:
         df = df[(df["Area"] == country)]
         place = country
 
-    title = place + "'s top 6 " + dfType + ' X ' + indicator
-    if decade != 'All Time':
+    title = '6 maiores itens por ' + dfType + ' X ' + traducao(indicator) + ' em ' + decade + ' - local: ' + place
+    
+    if decade != 'Todo o período':
         df= df[(df["Interval"] == decade)]
-    title = decade + ' ' + title
 
     df = df[df['Element'] == indicator]
     df = df[["Item", "Value"]]
     df = df.groupby(["Item"]).sum().reset_index()
     df = df.nlargest(6, 'Value')
     if not df.empty:
+        fig = px.bar(df, x="Value", y="Item", orientation='h')
+        fig.update_traces(textposition='inside')
+        fig.update_layout(uniformtext_minsize=12, uniformtext_mode='hide')
+        fig.update_layout(title_text=title)
+        
+        '''
         fig = px.pie(df, values='Value', names='Item',
             color_discrete_sequence=px.colors.sequential.Blues)
         fig.update_traces(textposition='inside')
         fig.update_layout(uniformtext_minsize=12, uniformtext_mode='hide')
         fig.update_layout(title_text=title)
+        '''
     else:
         fig = go.Figure()
         fig.update_layout(
@@ -110,17 +123,19 @@ def criaPieChart(df, dfType, country, decade, indicator):
 
     return fig
 
+
 def criaTimeSeries(df, dfType, country, decade, indicator):
     timerange = 'Interval'
-    place = 'world'
+    place = 'mundo'
     if country:
         df = df[(df["Area"] == country)]
         place = country
 
-    if decade != 'All Time':
+    if decade != 'Todo o período':
         df= df[(df["Interval"] == decade)]
         timerange = 'Year'
-    title =  decade + ' ' + place + "'s top " + dfType + ' X ' + indicator
+        
+    title = 'Evolução de ' + dfType + ' X ' + traducao(indicator) + ' em ' + decade + ' - local: ' + place
 
     df = df[df["Element"] == indicator]
     if not df.empty:
@@ -164,153 +179,207 @@ def criaTimeSeries(df, dfType, country, decade, indicator):
         )
     return fig
 
-app.layout = html.Div(children=[
-                html.Div([
-                    dcc.RadioItems(
-                        id='interval',
-                        options=[{'label': i, 'value': i} for i in decades],
-                        value='All Time',
-                        labelStyle={'display': 'inline-block', 'marginTop': '5px'}
-                    ),
-                    dcc.Graph(
-                        id='mapa',
-                        style={'width': '80%', 'display': 'inline-block'}
-                    )
-                ]),
 
+def traducao(termo):
+    dic = { 'Agricultural Use':'Uso Agrícola',
+            'Export Quantity':'Quantidade de exportação',
+            'Import Quantity':'Quantidade de importação',
+            'Prices Paid by Farmers':'Preços pagos pelos agricultores',
+            'Production':'Produção',
+            'Area harvested':'Área colhida',
+            'Laying':'Postura de Ovos',
+            'Producing Animals/Slaughtered':'Animais de Produção/Abatidos',
+            'Production':'Produção',
+            'Stocks':'Estoques',
+            'Yield':'Rendimentos',
+            'Yield/Carcass Weight':'Rendimento/peso da carcaça'}
+    
+    if(dic.get(termo)):
+        return(dic.get(termo))
+    else:
+        return(termo)
+    
+
+app.layout = html.Div(children=[
+    
+    
+                html.Div([
+    
+                    html.H1(
+                        children='Estatística de Produção de Alimentos',
+                        style={
+                            'textAlign': 'center'
+                        }
+                    ),
+                    
+                    html.H2(
+                        children='Contém gráficos de produção agrícola e pecuária em todo o mundo',
+                        style={
+                            'textAlign': 'center'
+                        }
+                    ),
+        
+                    html.Div([
+                        dcc.Graph(
+                            id='mapa',
+                            style={'width': '80%', 'display': 'inline-block'}
+                        )
+                    ], style={'width': '65%', 'display': 'inline-block'}),
+                    
+                    html.Div([
+                        html.Div([
+                            html.Label('Período:'),
+                            dcc.RadioItems(
+                                id='interval',
+                                options=[{'label': i, 'value': i} for i in decades],
+                                value='Todo o período',
+                                labelStyle={'display': 'inline-block', 'marginTop': '5px'}
+                            ),
+                            html.P(),
+                            html.Label('Indicador para Comparação entre Países no Mapa: '),
+                            dcc.Dropdown(
+                                id='indicators-mapa',
+                                options=[{'label': traducao(i), 'value': i} for i in production_indicators],
+                                value='Production'
+                            )
+                        ])
+                    ], style={'width': '35%', 'display': 'inline-block', 'vertical-align': 'top'})
+                ]),
+                
                 html.Div([
                     html.Div([
-                        dcc.Dropdown(
-                            id='indicators-production',
-                            options=[{'label': i, 'value': i} for i in production_indicators],
-                            value='Production',
-                            style={'width': '30%', 'display': 'inline-block'}
-                        )
-                    ], style={'width': '100%', 'display': 'inline-block'}),
-                    dcc.Graph(
-                        id='productionPie',
-                        style={'width': '50%', 'display': 'inline-block'}
-                    ),
-                    dcc.Graph(
-                        id='productionTimeSerie',
-                        style={'width': '50%', 'display': 'inline-block'}
-                    ),
+                    
+                        html.P(),
+                        html.H3("Detalhamento de Informações"),
+                        html.P()
+                    ], style={'width': '20%', 'display': 'inline-block', 'vertical-align': 'top'}),
                     html.Div([
+                        html.Label('Assunto para Detalhamento: '),
                         dcc.Dropdown(
-                            id='indicators-fertilizer',
-                            options=[{'label': i, 'value': i} for i in fertilizer_indicators],
-                            value='Agricultural Use',
-                            style={'width': '30%', 'display': 'inline-block'}
+                            id='detalhamento',
+                            options=[
+                                {'label': 'Produtos', 'value': 'Prod'},
+                                {'label': 'Pesticidas', 'value': 'Pest'},
+                                {'label': 'Fertilizantes', 'value': 'Fert'}
+                            ],
+                            value='Prod'
                         )
-                    ], style={'width': '100%', 'display': 'inline-block'}),
-                    dcc.Graph(
-                        id='fertilizerPie',
-                        style={'width': '50%', 'display': 'inline-block'}
-                    ),
-                    dcc.Graph(
-                        id='fertilizerTimeSerie',
-                        style={'width': '50%', 'display': 'inline-block'}
-                    ),
+                    ], style={'width': '27%', 'display': 'inline-block'}),
                     html.Div([
+                    ], style={'width': '3%', 'display': 'inline-block'}),
+                    html.Div([
+                        html.P(),
+                        html.Label('Indicador para Detalhamento: '),
                         dcc.Dropdown(
-                            id='indicators-pesticides',
-                            options=[{'label': i, 'value': i} for i in pesticide_indicators],
-                            value='Agricultural Use',
-                            style={'width': '30%', 'display': 'inline-block'}
+                            id='indicators-detalhamento',
+                            options=[{'label': traducao(i), 'value': i} for i in production_indicators],
+                            value='Production'
                         )
-                    ], style={'width': '100%', 'display': 'inline-block'}),
+                    ], style={'width': '47%', 'display': 'inline-block'}),
+                    html.Div([
+                    ], style={'width': '3%', 'display': 'inline-block'})
+                ]),
+                
+                
+                html.Div([
+                    
                     dcc.Graph(
-                        id='pesticidePie',
+                        id='Bar',
                         style={'width': '50%', 'display': 'inline-block'}
                     ),
                     dcc.Graph(
-                        id='pesticideTimeSerie',
+                        id='TimeSerie',
                         style={'width': '50%', 'display': 'inline-block'}
                     )
-                ])
+                    
+                ]),
+                
+
+                html.P(
+                    children='Fonte: FAO (Food and Agriculture Organization of the United Nations)',
+                    style={
+                        'textAlign': 'right'
+                    }
+                )
+                
             ])
+    
 
 @app.callback(
     Output(component_id='mapa', component_property='figure'),
-    [Input(component_id='interval', component_property='value')]
+    [Input(component_id='interval', component_property='value'),
+    Input(component_id='indicators-mapa', component_property='value')]
 )
-def montaMapa(decade):
-    return criaMapa(decade)
+def montaMapa(decade, indicator):
+    return criaMapa(decade, indicator)
 
 @app.callback(
-    Output(component_id='productionPie', component_property='figure'),
+    Output(component_id='Bar', component_property='figure'),
     [Input(component_id='interval', component_property='value'),
     Input(component_id='mapa', component_property='clickData'),
-    Input(component_id='indicators-production', component_property='value')]
+    Input(component_id='indicators-detalhamento', component_property='value'),
+    Input(component_id='detalhamento', component_property='value')]
 )
-def montaPieCrops(decade, country, indicator):
-    print(decade)
-    print(country)
+def montaBar(decade, country, indicator, detalhamento):
+    
     if country:
         country = country['points'][0]['hovertext']
+
+    ds=None
+    tipo=None
+    
+    if(detalhamento=='Prod'):
+        ds = crops;
+        tipo = 'Produtos'
+    elif(detalhamento=='Pest'):
+        ds = pest;
+        tipo = 'Pesticidas'
+    elif(detalhamento=='Fert'):
+        ds = fert;
+        tipo = 'Fertilizantes'
        
-    return criaPieChart(crops, 'products', country, decade, indicator)
+    return criaBarChart(ds, tipo, country, decade, indicator)
 
 @app.callback(
-    Output(component_id='fertilizerPie', component_property='figure'),
+    Output(component_id='TimeSerie', component_property='figure'),
     [Input(component_id='interval', component_property='value'),
     Input(component_id='mapa', component_property='clickData'),
-    Input(component_id='indicators-fertilizer', component_property='value')]
+    Input(component_id='indicators-detalhamento', component_property='value'),
+    Input(component_id='detalhamento', component_property='value')]
 )
-def montaPieFerts(decade, country, indicator):
+def montaSeries(decade, country, indicator, detalhamento):
+    
     if country:
         country = country['points'][0]['hovertext']
+        
+    ds=None
+    tipo=None
+    
+    if(detalhamento=='Prod'):
+        ds = crops;
+        tipo = 'Produtos'
+    elif(detalhamento=='Pest'):
+        ds = pest;
+        tipo = 'Pesticidas'
+    elif(detalhamento=='Fert'):
+        ds = fert;
+        tipo = 'Fertilizantes'
        
-    return criaPieChart(fert, 'fertilizers', country, decade, indicator)
+    return criaTimeSeries(ds, tipo, country, decade, indicator)
+
 
 @app.callback(
-    Output(component_id='pesticidePie', component_property='figure'),
-    [Input(component_id='interval', component_property='value'),
-    Input(component_id='mapa', component_property='clickData'),
-    Input(component_id='indicators-pesticides', component_property='value')]
+   Output(component_id='indicators-detalhamento', component_property='options'),
+   [Input(component_id='detalhamento', component_property='value')]
 )
-def montaPiePests(decade, country, indicator):
-    if country:
-        country = country['points'][0]['hovertext']
-       
-    return criaPieChart(pest, 'pesticides', country, decade, indicator)
+def update_options_det(detalhamento):   
+    if(detalhamento=='Prod'):
+        return [{'label': traducao(i), 'value': i} for i in production_indicators]
+    elif(detalhamento=='Pest'):
+        return [{'label': traducao(i), 'value': i} for i in pesticide_indicators] 
+    elif(detalhamento=='Fert'):
+        return [{'label': traducao(i), 'value': i} for i in fertilizer_indicators] 
 
-
-@app.callback(
-    Output(component_id='productionTimeSerie', component_property='figure'),
-    [Input(component_id='interval', component_property='value'),
-    Input(component_id='mapa', component_property='clickData'),
-    Input(component_id='indicators-production', component_property='value')]
-)
-def montaSeriesProduction(decade, country, indicator):
-    if country:
-        country = country['points'][0]['hovertext']
-       
-    return criaTimeSeries(crops, 'products', country, decade, indicator)
-
-@app.callback(
-    Output(component_id='fertilizerTimeSerie', component_property='figure'),
-    [Input(component_id='interval', component_property='value'),
-    Input(component_id='mapa', component_property='clickData'),
-    Input(component_id='indicators-fertilizer', component_property='value')]
-)
-def montaSeriesFertilizer(decade, country, indicator):
-    if country:
-        country = country['points'][0]['hovertext']
-       
-    return criaTimeSeries(fert, 'fertilizers', country, decade, indicator)
-
-@app.callback(
-    Output(component_id='pesticideTimeSerie', component_property='figure'),
-    [Input(component_id='interval', component_property='value'),
-    Input(component_id='mapa', component_property='clickData'),
-    Input(component_id='indicators-pesticides', component_property='value')]
-)
-def montaSeriesPesticides(decade, country, indicator):
-    if country:
-        country = country['points'][0]['hovertext']
-       
-    return criaTimeSeries(pest, 'pesticides', country, decade, indicator)
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True)  
